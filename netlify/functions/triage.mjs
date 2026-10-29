@@ -109,7 +109,15 @@ const json = (body, status = 200) =>
   });
 
 export default async (req) => {
-  if (req.method === "GET") return json({ rules: RULES, model: MODEL });
+  if (req.method === "GET") {
+    // Temporary diagnostic: reports the key's shape only, never its value.
+    if (new URL(req.url).searchParams.has("diag")) {
+      const raw = process.env.GEMINI_API_KEY || "";
+      const k = raw.trim().replace(/^["']|["']$/g, "");
+      return json({ present: !!raw, length: k.length, startsWithAIza: k.startsWith("AIza"), rawHadSpaces: raw !== raw.trim(), innerSpace: /\s/.test(k), nonAscii: /[^\x21-\x7e]/.test(k), context: process.env.CONTEXT || null });
+    }
+    return json({ rules: RULES, model: MODEL });
+  }
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   // Trim stray spaces or quotes that often come along when pasting the key.
