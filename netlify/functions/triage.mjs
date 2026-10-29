@@ -113,12 +113,6 @@ const json = (body, status = 200) =>
 
 export default async (req) => {
   if (req.method === "GET") {
-    if (new URL(req.url).searchParams.has("models")) {
-      const k = (process.env.GEMINI_API_KEY || "").trim();
-      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": k } });
-      const d = await r.json();
-      return json({ status: r.status, flash: (d.models || []).map((m) => m.name).filter((n) => /flash/.test(n)) });
-    }
     return json({ rules: RULES, model: MODELS.join(" → ") });
   }
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);

@@ -71,7 +71,7 @@ These checks cover only what code can verify. Semantic judgement, such as over-i
 1. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com).
 2. Deploy this repo on Netlify ("Import from Git"). No build command is needed.
 3. In Netlify go to **Site configuration → Environment variables** and add `GEMINI_API_KEY`.
-4. Optional: set `GEMINI_MODEL` to use a different model. The default is `gemini-flash-latest`.
+4. Optional: set `GEMINI_MODEL` to pin one model. By default the function tries `gemini-flash-lite-latest` first (typically 3–6 s) and falls back to `gemini-flash-latest` if the first is busy, all within Netlify's ~26 s function limit.
 
 ## Language
 
