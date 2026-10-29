@@ -114,7 +114,15 @@ export default async (req) => {
     if (new URL(req.url).searchParams.has("diag")) {
       const raw = process.env.GEMINI_API_KEY || "";
       const k = raw.trim().replace(/^["']|["']$/g, "");
-      return json({ present: !!raw, length: k.length, startsWithAIza: k.startsWith("AIza"), rawHadSpaces: raw !== raw.trim(), innerSpace: /\s/.test(k), nonAscii: /[^\x21-\x7e]/.test(k), context: process.env.CONTEXT || null });
+      const probe = async (url, headers) => {
+        const r = await fetch(url, { headers });
+        const t = await r.text();
+        return { status: r.status, reason: (t.match(/"reason":\s*"([A-Z_]+)"/) || [])[1] || null, models: (t.match(/"name":\s*"models\//g) || []).length };
+      };
+      const base = "https://generativelanguage.googleapis.com/v1beta/models";
+      const viaHeader = await probe(base, { "x-goog-api-key": k });
+      const viaQuery = await probe(`${base}?key=${encodeURIComponent(k)}`, {});
+      return json({ viaHeader, viaQuery, present: !!raw, length: k.length, startsWithAIza: k.startsWith("AIza"), rawHadSpaces: raw !== raw.trim(), innerSpace: /\s/.test(k), nonAscii: /[^\x21-\x7e]/.test(k), context: process.env.CONTEXT || null });
     }
     return json({ rules: RULES, model: MODEL });
   }
