@@ -2,7 +2,10 @@
 // GET  /api/triage -> returns the rule excerpt and model name (for display)
 // POST /api/triage -> { email } -> structured triage result from Gemini
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+// Fast model first; fall back when it is busy or slow. Netlify functions stop at ~26 s.
+const MODELS = process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : ["gemini-flash-lite-latest", "gemini-flash-latest"];
+const MODEL = MODELS[0];
+const BUDGET_MS = 24000;
 const MAX_CHARS = 1500;
 
 // Rule excerpt summarised by our team from Costco Taiwan's public return policy
@@ -110,21 +113,13 @@ const json = (body, status = 200) =>
 
 export default async (req) => {
   if (req.method === "GET") {
-    // Temporary diagnostic: reports the key's shape only, never its value.
-    if (new URL(req.url).searchParams.has("diag")) {
-      const raw = process.env.GEMINI_API_KEY || "";
-      const k = raw.trim().replace(/^["']|["']$/g, "");
-      const probe = async (url, headers) => {
-        const r = await fetch(url, { headers });
-        const t = await r.text();
-        return { status: r.status, reason: (t.match(/"reason":\s*"([A-Z_]+)"/) || [])[1] || null, models: (t.match(/"name":\s*"models\//g) || []).length };
-      };
-      const base = "https://generativelanguage.googleapis.com/v1beta/models";
-      const viaHeader = await probe(base, { "x-goog-api-key": k });
-      const viaQuery = await probe(`${base}?key=${encodeURIComponent(k)}`, {});
-      return json({ viaHeader, viaQuery, last4: k.slice(-4), dotCount: (k.match(/\./g) || []).length, present: !!raw, length: k.length, startsWithAIza: k.startsWith("AIza"), rawHadSpaces: raw !== raw.trim(), innerSpace: /\s/.test(k), nonAscii: /[^\x21-\x7e]/.test(k), context: process.env.CONTEXT || null });
+    if (new URL(req.url).searchParams.has("models")) {
+      const k = (process.env.GEMINI_API_KEY || "").trim();
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": k } });
+      const d = await r.json();
+      return json({ status: r.status, flash: (d.models || []).map((m) => m.name).filter((n) => /flash/.test(n)) });
     }
-    return json({ rules: RULES, model: MODEL });
+    return json({ rules: RULES, model: MODELS.join(" → ") });
   }
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
@@ -143,44 +138,57 @@ export default async (req) => {
   if (email.length > MAX_CHARS) return json({ error: `來信請在 ${MAX_CHARS} 字以內。` }, 400);
 
   const started = Date.now();
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ role: "user", parts: [{ text: buildUserPrompt(email) }] }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-          responseSchema: RESPONSE_SCHEMA,
-        },
-      }),
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: [{ role: "user", parts: [{ text: buildUserPrompt(email) }] }],
+    generationConfig: { temperature: 0.2, responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA },
+  });
+
+  let last = { status: 502, message: "Gemini API 呼叫失敗。" };
+  for (const [i, model] of MODELS.entries()) {
+    const left = BUDGET_MS - (Date.now() - started);
+    if (left < 3000) break;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), i === MODELS.length - 1 ? left : Math.min(left, 14000));
+    let res;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body,
+        signal: ctrl.signal,
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      console.error("Gemini timeout", model, err.name);
+      last = { status: 504, message: "Gemini 回應太慢，請再按一次。" };
+      continue;
     }
-  );
+    clearTimeout(timer);
 
-  if (!res.ok) {
-    const detail = await res.text();
-    const status = res.status === 429 ? 429 : 502;
-    const message =
-      res.status === 429 ? "已達 Gemini 免費額度上限，請稍後再試。"
-      : detail.includes("API_KEY_INVALID") ? "伺服器上的 Gemini API key 無效，請到 Netlify 重新設定 GEMINI_API_KEY。"
-      : detail.includes("not found") || res.status === 404 ? `找不到模型 ${MODEL}，請在 Netlify 設定 GEMINI_MODEL。`
-      : "Gemini API 呼叫失敗。";
-    console.error("Gemini error", res.status, detail.slice(0, 500));
-    return json({ error: message }, status);
-  }
+    if (!res.ok) {
+      const detail = await res.text();
+      console.error("Gemini error", model, res.status, detail.slice(0, 400));
+      if (detail.includes("API_KEY_INVALID")) return json({ error: "伺服器上的 Gemini API key 無效，請到 Netlify 重新設定 GEMINI_API_KEY。" }, 502);
+      last =
+        res.status === 429 ? { status: 429, message: "已達 Gemini 免費額度上限，請稍後再試。" }
+        : res.status === 503 ? { status: 503, message: "Gemini 目前使用量過高，請過幾秒再試一次。" }
+        : res.status === 404 ? { status: 502, message: `找不到模型 ${model}。` }
+        : { status: 502, message: "Gemini API 呼叫失敗。" };
+      if ([429, 500, 503, 404].includes(res.status)) continue;
+      return json({ error: last.message }, last.status);
+    }
 
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-  try {
-    const result = JSON.parse(text);
-    return json({ result, model: MODEL, ms: Date.now() - started });
-  } catch {
-    console.error("Unparseable model output", text.slice(0, 500));
-    return json({ error: "模型輸出格式錯誤，請再試一次。" }, 502);
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+    try {
+      return json({ result: JSON.parse(text), model, ms: Date.now() - started });
+    } catch {
+      console.error("Unparseable model output", model, text.slice(0, 400));
+      last = { status: 502, message: "模型輸出格式錯誤，請再試一次。" };
+    }
   }
+  return json({ error: last.message }, last.status);
 };
 
 export const config = { path: "/api/triage" };
