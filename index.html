@@ -3,135 +3,253 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Returns Triage Assistant — LLM demo</title>
-  <meta name="description" content="A Gemini-powered demo that turns a customer's return email into a structured case for support staff, with automated guardrail checks." />
+  <title>退貨來信整理助理 — Returns Triage Assistant</title>
+  <meta name="description" content="A Gemini-powered demo that turns a customer's return email into a structured case for support staff, with every quote traced back to the original letter." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --paper: #FAFAF8; --ink: #0A0A0A; --wine: #6B1E23; --wine-soft: #F3E7E8;
-      --slate: #4A4643; --gray: #8A8A8A; --line: #D8D6D2; --panel: #EFEDE9;
-      --ok: #1F6B3A; --ok-soft: #E6F1EA; --warn: #8A5A00; --warn-soft: #FBF1DC;
-      --sans: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
-      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --paper: #F4F5F2;
+      --sheet: #FFFFFF;
+      --ink: #1F2A27;
+      --ink-2: #4E5A56;
+      --ink-3: #7D8783;
+      --rule: #D9DDD8;
+      --green: #2F6B57;
+      --green-bg: #E3EEE8;
+      --crimson: #9B2C3C;
+      --crimson-bg: #F6E4E6;
+      --amber: #8A5E08;
+      --amber-bg: #F8EDD3;
+      --marker: #F3E26A;
+      --marker-on: #E9C93A;
+      --sans: "IBM Plex Sans", "Noto Sans TC", system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      --serif: "Noto Serif TC", "Songti TC", "PMingLiU", Georgia, serif;
     }
-    * { box-sizing: border-box; margin: 0; }
-    body { background: var(--paper); color: var(--ink); font: 16px/1.6 var(--sans); }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 16px 64px; }
-    header { border-bottom: 1px solid var(--ink); padding-bottom: 20px; margin-bottom: 28px; }
-    .eyebrow { font: 500 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--wine); }
-    h1 { font-size: clamp(26px, 4vw, 40px); line-height: 1.15; letter-spacing: -.01em; margin: 8px 0 10px; }
-    .lede { color: var(--slate); max-width: 760px; }
-    .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; align-items: start; }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-    h2 { font: 600 13px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--slate); margin-bottom: 12px; }
-    .card { background: #fff; border: 1px solid var(--line); padding: 20px; margin-bottom: 20px; }
-    .samples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .chip { font: 13px var(--sans); border: 1px solid var(--line); background: var(--paper); padding: 6px 12px; cursor: pointer; }
-    .chip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
-    textarea { width: 100%; min-height: 220px; font: 15px/1.7 var(--sans); padding: 14px; border: 1px solid var(--line); background: var(--paper); resize: vertical; }
-    textarea:focus, .chip:focus-visible, button:focus-visible { outline: 2px solid var(--wine); outline-offset: 2px; }
-    .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
-    .hint { font-size: 13px; color: var(--gray); }
-    .btn { font: 600 15px var(--sans); background: var(--wine); color: #fff; border: 0; padding: 12px 22px; cursor: pointer; }
-    .btn:disabled { opacity: .55; cursor: progress; }
-    .btn--ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); padding: 6px 12px; font-size: 13px; font-weight: 500; }
-    details { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
-    summary { cursor: pointer; font-weight: 600; font-size: 14px; }
-    ol.rules { padding-left: 22px; margin-top: 10px; font-size: 14px; color: var(--slate); }
-    ol.rules li { margin-bottom: 6px; }
-    .principles { font-size: 14px; color: var(--slate); padding-left: 20px; margin-top: 10px; }
-    .empty { color: var(--gray); text-align: center; padding: 48px 16px; border: 1px dashed var(--line); }
-    .error { background: var(--wine-soft); color: var(--wine); padding: 14px 16px; border-left: 3px solid var(--wine); margin-bottom: 20px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    th { font: 600 12px var(--mono); color: var(--slate); letter-spacing: .04em; }
-    .tbl { overflow-x: auto; }
-    .tag { display: inline-block; font-size: 12px; padding: 2px 8px; white-space: nowrap; font-weight: 600; }
-    .s-已提供 { background: var(--ok-soft); color: var(--ok); }
-    .s-尚未提供 { background: var(--wine-soft); color: var(--wine); }
-    .s-表述不明 { background: var(--warn-soft); color: var(--warn); }
-    .quote { color: var(--slate); }
-    .quote:not(:empty)::before { content: "「"; } .quote:not(:empty)::after { content: "」"; }
-    .checks { list-style: none; padding: 0; }
-    .checks li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
-    .checks li:last-child { border-bottom: 0; }
-    .mark { flex: 0 0 22px; height: 22px; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
-    .pass .mark { background: var(--ok-soft); color: var(--ok); }
-    .fail .mark { background: var(--wine-soft); color: var(--wine); }
-    .checks small { display: block; color: var(--gray); }
-    .score { font: 600 14px var(--mono); }
-    ul.plain { padding-left: 20px; font-size: 15px; }
-    ul.plain li { margin-bottom: 6px; }
-    .rule-no { font: 600 13px var(--mono); color: var(--wine); margin-right: 6px; }
-    .staff { font-size: 12px; color: var(--warn); margin-left: 6px; white-space: nowrap; }
-    .reply { background: var(--paper); border-left: 3px solid var(--ink); padding: 14px 16px; font-size: 15px; white-space: pre-wrap; }
-    .meta { font: 12px var(--mono); color: var(--gray); margin-top: 8px; }
-    .loading { display: flex; gap: 10px; align-items: center; color: var(--slate); padding: 24px 0; }
-    .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--wine); border-radius: 50%; animation: spin .8s linear infinite; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { background: var(--paper); color: var(--ink); font: 16px/1.65 var(--sans); }
+    button { font: inherit; color: inherit; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+
+    .page { max-width: 1240px; margin: 0 auto; padding: 40px 24px 72px; }
+
+    /* Masthead */
+    .mast { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; padding-bottom: 28px; }
+    .mast h1 { font-size: clamp(28px, 3.6vw, 42px); font-weight: 700; line-height: 1.12; letter-spacing: -0.01em; }
+    .mast h1 span { display: block; font-weight: 400; font-size: 0.48em; color: var(--ink-2); letter-spacing: 0; margin-top: 6px; }
+    .mast p { max-width: 62ch; color: var(--ink-2); margin-top: 14px; }
+    .mast p[lang="en"] { font-size: 14px; color: var(--ink-3); margin-top: 6px; }
+    .mast .note { font-size: 13px; color: var(--ink-3); text-align: right; max-width: 26ch; }
+    @media (max-width: 920px) { .mast .note { text-align: left; max-width: none; margin-top: 0; } .mast .note br { display: none; } }
+
+    /* Two panes */
+    .desk { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; align-items: start; }
+    .letter-pane { position: sticky; top: 24px; }
+    @media (max-width: 920px) {
+      .desk { grid-template-columns: 1fr; }
+      .letter-pane { position: static; }
+    }
+
+    /* The letter */
+    .samples { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .sample { border: 1px solid var(--rule); background: transparent; padding: 6px 12px; border-radius: 999px; font-size: 14px; cursor: pointer; color: var(--ink-2); }
+    .sample:hover { border-color: var(--ink-3); color: var(--ink); }
+    .sample[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+    .letter { background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; box-shadow: 0 1px 0 var(--rule), 0 14px 30px -22px rgba(31, 42, 39, 0.45); }
+    .letter-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 16px 22px 0; font-size: 13px; color: var(--ink-3); }
+    .letter-body { padding: 14px 22px 22px; }
+    textarea#email, .letter-view {
+      display: block; width: 100%; min-height: 250px;
+      font: 17px/1.95 var(--serif); color: var(--ink);
+      border: 0; background: transparent; resize: vertical;
+    }
+    textarea#email:focus { outline: none; }
+    .letter:focus-within { border-color: var(--ink-3); }
+    .letter-view { white-space: pre-wrap; word-break: break-word; min-height: 0; }
+    .letter-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 22px; border-top: 1px dashed var(--rule); }
+    .count { font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+    mark.ev {
+      color: inherit; padding: 1px 0; border-radius: 2px;
+      background: linear-gradient(transparent 38%, var(--marker) 38%, var(--marker) 92%, transparent 92%) no-repeat 0 0 / 0% 100%;
+      transition: background-size 420ms cubic-bezier(.3,.7,.2,1) calc(var(--i, 0) * 70ms), box-shadow 160ms;
+    }
+    .traced mark.ev { background-size: 100% 100%; }
+    mark.ev.on { background-image: linear-gradient(transparent 30%, var(--marker-on) 30%, var(--marker-on) 96%, transparent 96%); box-shadow: 0 2px 0 var(--ink); }
+    @media (prefers-reduced-motion: reduce) { mark.ev { transition: none; } }
+
+    .btn { border: 0; border-radius: 3px; cursor: pointer; font-weight: 600; }
+    .btn-run { background: var(--green); color: #fff; padding: 11px 22px; font-size: 15px; }
+    .btn-run:hover { background: #255846; }
+    .btn-run:disabled { opacity: 0.6; cursor: progress; }
+    .btn-quiet { background: transparent; border: 1px solid var(--rule); padding: 6px 12px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+    .btn-quiet:hover { border-color: var(--ink-3); color: var(--ink); }
+
+    .hint { font-size: 13px; color: var(--ink-3); }
+    .aside { margin-top: 18px; }
+    details { border-top: 1px solid var(--rule); }
+    details:last-child { border-bottom: 1px solid var(--rule); }
+    summary { cursor: pointer; padding: 12px 0; font-size: 14px; font-weight: 500; color: var(--ink-2); list-style: none; display: flex; justify-content: space-between; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; color: var(--ink-3); }
+    details[open] summary::after { content: "−"; }
+    .rules-list { list-style: none; counter-reset: r; padding-bottom: 14px; font-size: 14px; color: var(--ink-2); }
+    .rules-list li { counter-increment: r; display: grid; grid-template-columns: 28px 1fr; padding: 4px 0; }
+    .rules-list li::before { content: counter(r); color: var(--green); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .limits { padding: 0 0 14px 18px; font-size: 14px; color: var(--ink-2); }
+    .limits li { margin-bottom: 4px; }
+
+    /* Case file */
+    .case-empty { border: 1px dashed var(--rule); border-radius: 3px; padding: 56px 28px; color: var(--ink-3); }
+    .case-empty strong { display: block; color: var(--ink); font-size: 18px; margin-bottom: 6px; }
+    .case-empty ol { margin: 14px 0 0 18px; font-size: 14px; }
+    .working { display: flex; align-items: center; gap: 12px; padding: 40px 4px; color: var(--ink-2); }
+    .working i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--rule); border-top-color: var(--green); animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--gray); }
+    @media (prefers-reduced-motion: reduce) { .working i { animation-duration: 3s; } }
+    .error { border-left: 3px solid var(--crimson); background: var(--crimson-bg); color: var(--crimson); padding: 14px 16px; }
+
+    .verdict { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 2px solid var(--ink); }
+    .verdict b { font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+    .verdict span { color: var(--ink-2); }
+    .verdict small { margin-left: auto; color: var(--ink-3); font-size: 13px; }
+    .checks { list-style: none; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; padding: 6px 0 4px; }
+    @media (max-width: 560px) { .checks { grid-template-columns: 1fr; } }
+    .checks li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: 14px; }
+    .checks li svg { margin-top: 3px; }
+    .checks .fail { color: var(--crimson); }
+    .checks small { display: block; color: var(--ink-3); font-size: 13px; }
+    .checks .fail small { color: var(--crimson); }
+    .checks-note { font-size: 13px; color: var(--ink-3); padding: 10px 0 0; }
+
+    .block { padding-top: 34px; }
+    .block h2 { font-size: 19px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .block h2 small { font-size: 13px; font-weight: 400; color: var(--ink-3); }
+
+    .fields { width: 100%; border-collapse: collapse; font-size: 15px; }
+    .fields td { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    .fields tr:first-child td { border-top: 1px solid var(--ink); }
+    .fields td:first-child { width: 34%; color: var(--ink-2); padding-left: 2px; }
+    .fields td:nth-child(2) { width: 92px; }
+    .fields tr[data-ref] { cursor: default; }
+    .fields tr[data-ref]:hover td, .fields tr[data-ref]:focus-within td, .fields tr.on td { background: #FBF7DA; }
+    .q { font-family: var(--serif); color: var(--ink); }
+    .q-missing { color: var(--crimson); font-size: 13px; display: block; margin-top: 2px; font-family: var(--sans); }
+    .st { display: inline-block; font-size: 13px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+    .st-已提供 { color: var(--green); background: var(--green-bg); }
+    .st-尚未提供 { color: var(--crimson); background: var(--crimson-bg); }
+    .st-表述不明 { color: var(--amber); background: var(--amber-bg); }
+    @media (max-width: 560px) {
+      .fields td:first-child { width: auto; }
+      .fields tr { display: grid; grid-template-columns: 1fr auto; }
+      .fields td { border: 0; padding: 6px 0; }
+      .fields td:nth-child(3) { grid-column: 1 / -1; padding-top: 0; }
+      .fields tr { border-bottom: 1px solid var(--rule); padding: 4px 0; }
+      .fields tr:first-child { border-top: 1px solid var(--ink); }
+      .fields tr:first-child td { border-top: 0; }
+    }
+
+    .rules-hit { list-style: none; border-top: 1px solid var(--ink); }
+    .rules-hit li { display: grid; grid-template-columns: 54px 1fr; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+    .rules-hit .no { font-weight: 600; color: var(--green); font-size: 14px; }
+    .rules-hit .src { display: block; font-size: 13px; color: var(--ink-3); margin-top: 4px; }
+    .flag { font-size: 13px; color: var(--amber); font-weight: 600; margin-left: 6px; white-space: nowrap; }
+    .uncovered { margin-top: 12px; padding: 12px 14px; background: var(--amber-bg); color: var(--amber); font-size: 14px; border-radius: 3px; }
+    .uncovered p + p { margin-top: 4px; }
+
+    .asks { counter-reset: a; list-style: none; border-top: 1px solid var(--ink); }
+    .asks li { counter-increment: a; display: grid; grid-template-columns: 28px 1fr; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+    .asks li::before { content: counter(a); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+    .draft { background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 18px 20px; font: 16px/1.85 var(--serif); white-space: pre-wrap; }
+    .draft-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: 13px; color: var(--ink-3); }
+
+    footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-3); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
     footer a { color: var(--ink); }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="eyebrow">LLM demo · Costco Taiwan online returns · 模擬資料</div>
-      <h1>退貨來信整理助理<br /><span style="font-weight:500;font-size:.6em;color:var(--slate)">Returns Triage Assistant</span></h1>
-      <p class="lede">
-        把會員用口語寫的退貨來信，整理成客服可以直接處理的案件：必要資料是否齊全、可能適用哪些規則、要補問什麼，並草擬回覆。
-        AI 只整理與草擬，能不能退、退多少由客服決定。每次輸出都會跑一組自動查核。
-      </p>
-      <p class="lede" lang="en" style="margin-top:8px">
-        Turns a customer's free-text return email into a structured case for support staff: what's missing, which policy rules might apply, what to ask next, and a draft reply.
-        The AI organises and drafts; staff make the decision. Every output runs through automated guardrail checks. Replies follow the customer's language.
-      </p>
+  <div class="page">
+    <header class="mast">
+      <div>
+        <h1>退貨來信整理助理<span>Returns Triage Assistant</span></h1>
+        <p>把會員用口語寫的退貨來信，整理成客服能直接處理的案件。AI 只負責整理和草擬，能不能退由客服決定。每一句引用都會標回原信，讓你看得到它沒有亂編。</p>
+        <p lang="en">Turns a customer's return email into a case support staff can act on. Every quote is traced back to the original letter. Replies follow the customer's language.</p>
+      </div>
+      <p class="note">示範用的模擬來信，<br />與好市多無關</p>
     </header>
 
-    <div class="grid">
-      <section aria-labelledby="in-h">
-        <div class="card">
-          <h2 id="in-h">會員來信 · Customer email</h2>
-          <div class="samples" role="group" aria-label="範例來信">
-            <button class="chip" data-sample="0" aria-pressed="true">範例 1：資訊不齊</button>
-            <button class="chip" data-sample="1" aria-pressed="false">範例 2：資料完整</button>
-            <button class="chip" data-sample="2" aria-pressed="false">範例 3：不可退商品</button>
-            <button class="chip" data-sample="3" aria-pressed="false">Sample 4: English email</button>
+    <main class="desk">
+      <section class="letter-pane" aria-labelledby="letter-h">
+        <h2 id="letter-h" class="sr">會員來信</h2>
+        <div class="samples" role="group" aria-label="範例來信">
+          <button class="sample" data-sample="0" aria-pressed="true">資訊不齊</button>
+          <button class="sample" data-sample="1" aria-pressed="false">資料完整</button>
+          <button class="sample" data-sample="2" aria-pressed="false">不可退商品</button>
+          <button class="sample" data-sample="3" aria-pressed="false" lang="en">English</button>
+        </div>
+
+        <div class="letter" id="letter">
+          <div class="letter-head">
+            <span>會員來信</span>
+            <button class="btn btn-quiet" id="edit" hidden>修改來信</button>
           </div>
-          <label for="email" class="hint">可修改內容或貼上自己的範例。請勿輸入真實個人資料。</label>
-          <textarea id="email" maxlength="1500"></textarea>
-          <div class="row">
-            <span class="hint" id="count">0 / 1500</span>
-            <button class="btn" id="run">整理來信 →</button>
+          <div class="letter-body">
+            <label for="email" class="sr">會員來信內容</label>
+            <textarea id="email" maxlength="1500" spellcheck="false"></textarea>
+            <div class="letter-view" id="view" hidden></div>
           </div>
+          <div class="letter-foot">
+            <span class="count" id="count">0 / 1500</span>
+            <button class="btn btn-run" id="run">整理這封信</button>
+          </div>
+        </div>
+        <p class="hint" style="margin-top:10px">可以改寫範例或貼上自己的版本，請不要輸入真實個人資料。</p>
+
+        <div class="aside">
           <details>
-            <summary>AI 依據的規則摘錄（7 條）</summary>
-            <ol class="rules" id="rules"><li>載入中…</li></ol>
-            <p class="hint" style="margin-top:8px">依好市多臺灣官網規章與常見問答整理，非官方原文（2026-10-18 取得，10-26 再次核對）。</p>
+            <summary>AI 依據的 7 條退貨規則</summary>
+            <ol class="rules-list" id="rules"><li>載入中</li></ol>
+            <p class="hint" style="padding-bottom:14px">依好市多臺灣官網規章與常見問答整理，不是官方原文。2026 年 10 月 18 日取得，26 日再次核對。</p>
           </details>
           <details>
-            <summary>提示詞的主要限制</summary>
-            <ul class="principles">
-              <li>只依據來信與規則摘錄，不補充、不引用摘錄外的規則</li>
-              <li>引用必須是來信原文；沒提到就標「尚未提供」</li>
-              <li>不換算日期、不判定是否超過期限</li>
+            <summary>給 AI 的限制</summary>
+            <ul class="limits">
+              <li>只依據來信和這 7 條規則，不補充、不引用其他規則</li>
+              <li>引用一定要是來信原文，沒提到就標「尚未提供」</li>
+              <li>不換算日期，不判斷是否超過期限</li>
               <li>商品狀況照原話記錄，不判定為「瑕疵」</li>
-              <li>回覆 120 字內，不承諾可退、退款時間或取件時段</li>
-              <li>輸出用固定 JSON schema，三種狀態只能三選一</li>
+              <li>回覆不承諾可以退、退款時間或取件時段</li>
+              <li>輸出格式固定，每個欄位只能是三種狀態之一</li>
             </ul>
           </details>
         </div>
       </section>
 
-      <section aria-labelledby="out-h" aria-live="polite">
-        <h2 id="out-h">整理結果 · Triage result</h2>
-        <div id="out"><div class="empty">選一封範例來信，按「整理來信」。</div></div>
+      <section aria-labelledby="case-h" aria-live="polite">
+        <h2 id="case-h" class="sr">整理結果</h2>
+        <div id="case">
+          <div class="case-empty">
+            <strong>案件會出現在這裡</strong>
+            選一封範例來信，按「整理這封信」。
+            <ol>
+              <li>Gemini 把來信整理成固定格式</li>
+              <li>程式自動查核輸出，例如引用是不是原文</li>
+              <li>每一句引用會用螢光筆標回左邊的原信</li>
+            </ol>
+          </div>
+        </div>
       </section>
-    </div>
+    </main>
 
     <footer>
-      Built by <a href="https://10xuan12.github.io/selina-portfolio/" target="_blank" rel="noopener">Selina Huang</a>.
-      Based on a graduate course case study on redesigning Costco Taiwan's online return process with generative AI.
-      Not affiliated with Costco. All emails are fictional.
+      <span>Built by <a href="https://10xuan12.github.io/selina-portfolio/" target="_blank" rel="noopener">Selina Huang</a>，延伸自研究所課程的生成式 AI 流程改造案例。</span>
+      <a href="https://github.com/10xuan12/costco-returns-ai" target="_blank" rel="noopener">Source on GitHub</a>
     </footer>
   </div>
 
@@ -143,134 +261,182 @@
       "Hi, I'm in Taiwan for work and ordered an air purifier on your website last Tuesday. It arrived yesterday but makes a loud rattling noise when it runs. I still have the box and all the parts. My membership number is 123456789 and I paid in full by credit card. Can someone pick it up from my hotel? I check out on Friday."
     ];
     const REQUIRED = ["會員卡號", "訂單編號", "商品名稱／件數", "退貨商品包裝箱數", "取件資訊（姓名／電話／地址）", "退貨原因"];
-    const FIELDS = [["return_reason", "退貨原因"], ["condition", "商品狀況"], ["packaging", "包裝完整度"], ["received_date", "收貨日期"], ["payment", "付款方式"], ["invoice", "發票類型"]];
+    const FIELDS = [["return_reason", "退貨原因"], ["condition", "商品狀況"], ["packaging", "包裝"], ["received_date", "收貨日期"], ["payment", "付款方式"], ["invoice", "發票"]];
     const BANNED = ["瑕疵", "保證", "一定可以", "工作天", "管理室", "大小章", "發票章", "印章", "defect", "guarantee", "business days", "company seal"];
+    const SKIP = /[\s「」『』"'“”‘’]/;
     let RULES = [];
 
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-    const norm = (s) => String(s ?? "").replace(/[\s「」『』"'“”‘’]/g, "");
-    const tag = (st) => `<span class="tag s-${esc(st)}">${esc(st)}</span>`;
-
-    const email = $("#email");
-    const setSample = (i) => {
-      email.value = SAMPLES[i];
-      document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.sample == i)));
-      updateCount();
+    const norm = (s) => [...String(s ?? "")].filter((c) => !SKIP.test(c)).join("");
+    const ICON = {
+      ok: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7.5l3 3 7-7" fill="none" stroke="#2F6B57" stroke-width="2"/></svg>',
+      bad: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" fill="none" stroke="#9B2C3C" stroke-width="2"/></svg>'
     };
+
+    const email = $("#email"), view = $("#view"), letter = $("#letter");
     const updateCount = () => ($("#count").textContent = `${email.value.length} / 1500`);
-    document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => setSample(+c.dataset.sample)));
-    email.addEventListener("input", () => {
-      updateCount();
-      document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
-    });
+    const pressSample = (i) => document.querySelectorAll(".sample").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.sample === i)));
+    function editMode() {
+      view.hidden = true; email.hidden = false; $("#edit").hidden = true;
+      letter.classList.remove("traced");
+    }
+    function setSample(i) {
+      email.value = SAMPLES[i]; pressSample(i); updateCount(); editMode();
+    }
+    document.querySelectorAll(".sample").forEach((b) => b.addEventListener("click", () => setSample(+b.dataset.sample)));
+    email.addEventListener("input", () => { updateCount(); pressSample(-1); });
+    $("#edit").addEventListener("click", () => { editMode(); email.focus(); });
     setSample(0);
 
     fetch("/api/triage").then((r) => r.json()).then((d) => {
       RULES = d.rules || [];
       $("#rules").innerHTML = RULES.map((r) => `<li>${esc(r)}</li>`).join("");
-    }).catch(() => ($("#rules").innerHTML = "<li>規則載入失敗</li>"));
+    }).catch(() => ($("#rules").innerHTML = "<li>規則載入失敗，重新整理頁面再試一次。</li>"));
 
-    // Automated checks: the parts of our 11-point human review that code can verify.
-    function runChecks(res, source) {
-      const src = norm(source);
-      const checks = [];
-      const quoted = [];
-      (res.required_info || []).forEach((r) => quoted.push([r.item, r.status, r.quote]));
-      (res.products || []).forEach((p) => FIELDS.forEach(([k, label]) => p[k] && quoted.push([`${p.product}・${label}`, p[k].status, p[k].quote])));
-
-      const badQuotes = quoted.filter(([, st, q]) => st !== "尚未提供" && q && !src.includes(norm(q)));
-      checks.push({ ok: badQuotes.length === 0, label: "引用都是來信原文（沒有編造）", detail: badQuotes.length ? `找不到原文：${badQuotes.map(([n]) => n).join("、")}` : `${quoted.filter(([, st]) => st !== "尚未提供").length} 筆引用都在來信中` });
-
-      const missingQuote = quoted.filter(([, st, q]) => st !== "尚未提供" && !norm(q));
-      checks.push({ ok: missingQuote.length === 0, label: "標為已提供／表述不明的欄位都附原文", detail: missingQuote.length ? `缺原文：${missingQuote.map(([n]) => n).join("、")}` : "" });
-
-      const items = (res.required_info || []).map((r) => r.item);
-      const missingItems = REQUIRED.filter((x) => !items.includes(x));
-      checks.push({ ok: missingItems.length === 0, label: "規則 7 的 6 項必要資料都有檢查", detail: missingItems.length ? `漏掉：${missingItems.join("、")}` : "" });
-
-      const badRules = (res.rules || []).filter((r) => !(Number.isInteger(r.rule_no) && r.rule_no >= 1 && r.rule_no <= 7));
-      checks.push({ ok: badRules.length === 0, label: "只引用摘錄內的規則（1–7）", detail: badRules.length ? `摘錄外：${badRules.map((r) => r.rule_no).join("、")}` : "" });
-
-      const reply = res.reply_draft || "";
-      const isEnglish = (reply.match(/[A-Za-z]/g) || []).length > reply.replace(/\s/g, "").length / 2;
-      if (isEnglish) {
-        const words = reply.trim().split(/\s+/).filter(Boolean).length;
-        checks.push({ ok: words <= 80, label: "回覆 80 個英文單字以內 · Reply ≤ 80 words", detail: `${words} words` });
-      } else {
-        const len = reply.replace(/\s/g, "").length;
-        checks.push({ ok: len <= 120, label: "回覆 120 字以內", detail: `${len} 字` });
-      }
-
-      const hits = BANNED.filter((w) => reply.toLowerCase().includes(w.toLowerCase()));
-      checks.push({ ok: hits.length === 0, label: "回覆沒有判定瑕疵、沒有承諾或要求印章", detail: hits.length ? `出現：${hits.join("、")}` : "" });
-
-      return checks;
+    // Locate a quote in the original text, ignoring whitespace and quote marks.
+    function locate(source, quote) {
+      const map = [];
+      let flat = "";
+      [...source].forEach((c, i) => { if (!SKIP.test(c)) { flat += c; map.push(i); } });
+      const q = norm(quote);
+      if (!q) return null;
+      const at = flat.indexOf(q);
+      if (at < 0) return null;
+      return [map[at], map[at + q.length - 1] + 1];
     }
 
+    // Collect every quote the model used, with a reference id.
+    function collect(res) {
+      const out = [];
+      (res.required_info || []).forEach((r, i) => out.push({ ref: `r${i}`, label: r.item, status: r.status, quote: r.quote }));
+      (res.products || []).forEach((p, pi) => FIELDS.forEach(([k, label]) => p[k] && out.push({ ref: `p${pi}${k}`, label: `${p.product}：${label}`, status: p[k].status, quote: p[k].quote })));
+      return out;
+    }
+
+    function runChecks(res, source, quotes) {
+      const used = quotes.filter((q) => q.status !== "尚未提供");
+      const lost = used.filter((q) => q.quote && !q.span);
+      const bare = used.filter((q) => !norm(q.quote));
+      const items = (res.required_info || []).map((r) => r.item);
+      const skipped = REQUIRED.filter((x) => !items.includes(x));
+      const outside = (res.rules || []).filter((r) => !(Number.isInteger(r.rule_no) && r.rule_no >= 1 && r.rule_no <= 7));
+      const reply = res.reply_draft || "";
+      const english = (reply.match(/[A-Za-z]/g) || []).length > reply.replace(/\s/g, "").length / 2;
+      const size = english ? reply.trim().split(/\s+/).filter(Boolean).length : reply.replace(/\s/g, "").length;
+      const limit = english ? 80 : 120;
+      const hits = BANNED.filter((w) => reply.toLowerCase().includes(w.toLowerCase()));
+      return [
+        { ok: !lost.length, label: "引用都找得到原文", detail: lost.length ? `找不到：${lost.map((q) => q.label).join("、")}` : `${used.length} 句引用都標在原信上` },
+        { ok: !bare.length, label: "有內容的欄位都附引用", detail: bare.length ? `缺引用：${bare.map((q) => q.label).join("、")}` : "" },
+        { ok: !skipped.length, label: "6 項必要資料都檢查了", detail: skipped.length ? `漏掉：${skipped.join("、")}` : "" },
+        { ok: !outside.length, label: "只引用規則 1 到 7", detail: outside.length ? `規則外：${outside.map((r) => r.rule_no).join("、")}` : "" },
+        { ok: size <= limit, label: english ? `回覆不超過 ${limit} 個英文字` : `回覆不超過 ${limit} 字`, detail: english ? `${size} words` : `${size} 字` },
+        { ok: !hits.length, label: "回覆沒有下判斷或做承諾", detail: hits.length ? `出現「${hits.join("」「")}」` : "" }
+      ];
+    }
+
+    // Paint highlighter marks onto the letter.
+    function trace(source, quotes) {
+      const cuts = new Set([0, source.length]);
+      quotes.forEach((q) => q.span && (cuts.add(q.span[0]), cuts.add(q.span[1])));
+      const pts = [...cuts].sort((a, b) => a - b);
+      let html = "", n = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [a, b] = [pts[i], pts[i + 1]];
+        const refs = quotes.filter((q) => q.span && q.span[0] <= a && q.span[1] >= b).map((q) => q.ref);
+        const text = esc(source.slice(a, b));
+        html += refs.length ? `<mark class="ev" data-refs="${refs.join(" ")}" style="--i:${n++}">${text}</mark>` : text;
+      }
+      view.innerHTML = html;
+      email.hidden = true; view.hidden = false; $("#edit").hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => letter.classList.add("traced")));
+    }
+
+    function link(ref, on) {
+      document.querySelectorAll(`mark.ev`).forEach((m) => m.dataset.refs.split(" ").includes(ref) && m.classList.toggle("on", on));
+      document.querySelectorAll(`tr[data-ref="${ref}"]`).forEach((r) => r.classList.toggle("on", on));
+    }
+
+    const status = (s) => `<span class="st st-${esc(s)}">${esc(s)}</span>`;
+    const row = (q) => `<tr ${q.span ? `data-ref="${q.ref}" tabindex="0"` : ""}>
+      <td>${esc(q.label.includes("：") ? q.label.split("：")[1] : q.label)}</td>
+      <td>${status(q.status)}</td>
+      <td>${q.quote ? `<span class="q">${esc(q.quote)}</span>${q.span ? "" : '<span class="q-missing">原信裡找不到這句</span>'}` : ""}</td></tr>`;
+
     function render(res, source, meta) {
-      const checks = runChecks(res, source);
+      const quotes = collect(res).map((q) => ({ ...q, span: q.status !== "尚未提供" ? locate(source, q.quote) : null }));
+      const checks = runChecks(res, source, quotes);
       const passed = checks.filter((c) => c.ok).length;
-      const ruleText = (n) => RULES[n - 1] ? `<div class="hint">${esc(RULES[n - 1])}</div>` : "";
-      $("#out").innerHTML = `
-        <div class="card">
-          <div class="row" style="margin:0 0 6px"><h2 style="margin:0">自動查核 · Guardrail checks</h2><span class="score">${passed} / ${checks.length} 通過</span></div>
-          <ul class="checks">${checks.map((c) => `<li class="${c.ok ? "pass" : "fail"}"><span class="mark">${c.ok ? "✓" : "!"}</span><span>${esc(c.label)}${c.detail ? `<small>${esc(c.detail)}</small>` : ""}</span></li>`).join("")}</ul>
-          <p class="hint" style="margin-top:8px">只檢查程式能驗證的項目；語意判斷（例如是否過度推論）仍需客服人工查核。</p>
+      const req = quotes.filter((q) => q.ref.startsWith("r"));
+      const ruleSrc = (n) => (RULES[n - 1] ? `<span class="src">${esc(RULES[n - 1])}</span>` : "");
+
+      $("#case").innerHTML = `
+        <div class="verdict"><b>${passed}/${checks.length}</b><span>項自動查核通過</span><small>${esc(meta.model)}，${(meta.ms / 1000).toFixed(1)} 秒</small></div>
+        <ul class="checks">${checks.map((c) => `<li class="${c.ok ? "" : "fail"}">${c.ok ? ICON.ok : ICON.bad}<span>${esc(c.label)}${c.detail ? `<small>${esc(c.detail)}</small>` : ""}</span></li>`).join("")}</ul>
+        <p class="checks-note">程式只能查核看得出對錯的部分，例如有沒有過度推論，仍要客服自己判斷。</p>
+
+        <div class="block">
+          <h2>必要資料<small>規則 7 要求的 6 項</small></h2>
+          <table class="fields"><tbody>${req.map(row).join("")}</tbody></table>
         </div>
 
-        <div class="card">
-          <h2>必要資料檢查 · Required info (rule 7)</h2>
-          <div class="tbl"><table><thead><tr><th>項目</th><th>狀態</th><th>原文</th></tr></thead><tbody>
-            ${(res.required_info || []).map((r) => `<tr><td>${esc(r.item)}</td><td>${tag(r.status)}</td><td class="quote">${esc(r.quote)}</td></tr>`).join("")}
-          </tbody></table></div>
+        ${(res.products || []).map((p, pi) => `
+        <div class="block">
+          <h2>${esc(p.product)}</h2>
+          <table class="fields"><tbody>${quotes.filter((q) => q.ref.startsWith(`p${pi}`)).map(row).join("")}</tbody></table>
+        </div>`).join("")}
+
+        <div class="block">
+          <h2>可能適用的規則</h2>
+          ${(res.rules || []).length ? `<ul class="rules-hit">${res.rules.map((r) => `<li><span class="no">規則 ${esc(r.rule_no)}</span><span>${esc(r.reason)}${r.needs_staff_check ? '<span class="flag">需人員確認</span>' : ""}${ruleSrc(r.rule_no)}</span></li>`).join("")}</ul>` : '<p class="hint">沒有符合的規則。</p>'}
+          ${(res.uncovered || []).length ? `<div class="uncovered">${res.uncovered.map((u) => `<p>${esc(u)}</p>`).join("")}</div>` : ""}
         </div>
 
-        ${(res.products || []).map((p) => `
-          <div class="card">
-            <h2>案件摘要 · ${esc(p.product)}</h2>
-            <div class="tbl"><table><thead><tr><th>欄位</th><th>狀態</th><th>原文</th></tr></thead><tbody>
-              ${FIELDS.map(([k, label]) => `<tr><td>${label}</td><td>${tag(p[k]?.status)}</td><td class="quote">${esc(p[k]?.quote)}</td></tr>`).join("")}
-            </tbody></table></div>
-          </div>`).join("")}
-
-        <div class="card">
-          <h2>可能適用的規則 · Possibly applicable rules</h2>
-          ${(res.rules || []).length ? `<ul class="plain">${res.rules.map((r) => `<li><span class="rule-no">規則 ${esc(r.rule_no)}</span>${esc(r.reason)}${r.needs_staff_check ? `<span class="staff">需人員確認</span>` : ""}${ruleText(r.rule_no)}</li>`).join("")}</ul>` : `<p class="hint">無</p>`}
-          ${(res.uncovered || []).length ? `<h2 style="margin-top:16px">摘錄未涵蓋 · Not covered</h2><ul class="plain">${res.uncovered.map((u) => `<li>${esc(u)}</li>`).join("")}</ul>` : ""}
+        <div class="block">
+          <h2>要問會員的事</h2>
+          ${(res.questions || []).length ? `<ol class="asks">${res.questions.map((q) => `<li>${esc(q)}</li>`).join("")}</ol>` : '<p class="hint">資料齊全，不用補問。</p>'}
         </div>
 
-        <div class="card">
-          <h2>待確認問題 · Questions for the customer</h2>
-          <ul class="plain">${(res.questions || []).map((q) => `<li>${esc(q)}</li>`).join("") || "<li>無</li>"}</ul>
-        </div>
-
-        <div class="card">
-          <div class="row" style="margin:0 0 12px"><h2 style="margin:0">回覆草稿 · Draft reply</h2><button class="btn btn--ghost" id="copy">複製</button></div>
-          <div class="reply">${esc(res.reply_draft)}</div>
-          <p class="hint" style="margin-top:8px">草稿需客服修訂後才能送出。</p>
-          <div class="meta">${esc(meta.model)} · ${(meta.ms / 1000).toFixed(1)}s</div>
+        <div class="block">
+          <h2>回覆草稿<button class="btn btn-quiet" id="copy">複製草稿</button></h2>
+          <div class="draft">${esc(res.reply_draft)}</div>
+          <div class="draft-foot"><span>客服修改後才能送出。</span></div>
         </div>`;
+
+      trace(source, quotes);
+
+      document.querySelectorAll("tr[data-ref]").forEach((tr) => {
+        const on = () => link(tr.dataset.ref, true), off = () => link(tr.dataset.ref, false);
+        tr.addEventListener("mouseenter", on); tr.addEventListener("mouseleave", off);
+        tr.addEventListener("focus", on); tr.addEventListener("blur", off);
+      });
+      view.querySelectorAll("mark.ev").forEach((m) => {
+        const refs = m.dataset.refs.split(" ");
+        m.addEventListener("mouseenter", () => refs.forEach((r) => link(r, true)));
+        m.addEventListener("mouseleave", () => refs.forEach((r) => link(r, false)));
+      });
       $("#copy").addEventListener("click", (e) => {
         navigator.clipboard?.writeText(res.reply_draft || "").then(() => (e.target.textContent = "已複製"));
       });
     }
 
     $("#run").addEventListener("click", async () => {
-      const text = email.value.trim();
-      if (!text) return;
+      const text = email.value;
+      if (!text.trim()) { email.focus(); return; }
       const btn = $("#run");
-      btn.disabled = true;
-      $("#out").innerHTML = `<div class="loading"><span class="spinner"></span>Gemini 整理中…</div>`;
+      btn.disabled = true; btn.textContent = "整理中";
+      editMode();
+      $("#case").innerHTML = '<div class="working"><i></i>Gemini 正在讀這封信，通常需要 5 到 15 秒。</div>';
       try {
-        const r = await fetch("/api/triage", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: text }) });
+        const r = await fetch("/api/triage", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: text.trim() }) });
         const d = await r.json();
-        if (!r.ok) throw new Error(d.error || "發生錯誤");
-        render(d.result, text, d);
+        if (!r.ok) throw new Error(d.error || "整理失敗，請再按一次。");
+        render(d.result, text.trim(), d);
       } catch (err) {
-        $("#out").innerHTML = `<div class="error">${esc(err.message)}</div>`;
+        $("#case").innerHTML = `<div class="error">${esc(err.message === "Failed to fetch" ? "連不到伺服器，請檢查網路後再試一次。" : err.message)}</div>`;
       } finally {
-        btn.disabled = false;
+        btn.disabled = false; btn.textContent = "整理這封信";
       }
     });
   </script>

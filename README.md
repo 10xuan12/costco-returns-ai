@@ -1,6 +1,6 @@
 # Returns Triage Assistant — an LLM deployment demo
 
-A small web app that turns a customer's free-text return email into a structured case for support staff. It flags missing information and the policy rules that might apply, then drafts a reply. Every output is run through automated guardrail checks before anyone reads it.
+A small web app that turns a customer's free-text return email into a structured case for support staff. It flags missing information and the policy rules that might apply, then drafts a reply. Every output is run through automated guardrail checks, and every quote the model used is highlighted on the original letter, so a reviewer can see at a glance that nothing was invented.
 
 The AI organises and drafts. **Staff decide** whether the return is accepted and how much is refunded.
 
@@ -33,7 +33,8 @@ Netlify Function (netlify/functions/triage.mjs)
 Gemini API ──► structured JSON
    │
    ▼
-Browser renders the case and runs 6 guardrail checks
+Browser renders the case, runs 6 guardrail checks,
+and highlights every quote on the original letter
 ```
 
 **Output sections**
