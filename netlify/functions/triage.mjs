@@ -122,7 +122,7 @@ export default async (req) => {
       const base = "https://generativelanguage.googleapis.com/v1beta/models";
       const viaHeader = await probe(base, { "x-goog-api-key": k });
       const viaQuery = await probe(`${base}?key=${encodeURIComponent(k)}`, {});
-      return json({ viaHeader, viaQuery, present: !!raw, length: k.length, startsWithAIza: k.startsWith("AIza"), rawHadSpaces: raw !== raw.trim(), innerSpace: /\s/.test(k), nonAscii: /[^\x21-\x7e]/.test(k), context: process.env.CONTEXT || null });
+      return json({ viaHeader, viaQuery, last4: k.slice(-4), dotCount: (k.match(/\./g) || []).length, present: !!raw, length: k.length, startsWithAIza: k.startsWith("AIza"), rawHadSpaces: raw !== raw.trim(), innerSpace: /\s/.test(k), nonAscii: /[^\x21-\x7e]/.test(k), context: process.env.CONTEXT || null });
     }
     return json({ rules: RULES, model: MODEL });
   }
