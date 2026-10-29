@@ -81,6 +81,10 @@
         把會員用口語寫的退貨來信，整理成客服可以直接處理的案件：必要資料是否齊全、可能適用哪些規則、要補問什麼，並草擬回覆。
         AI 只整理與草擬，能不能退、退多少由客服決定。每次輸出都會跑一組自動查核。
       </p>
+      <p class="lede" lang="en" style="margin-top:8px">
+        Turns a customer's free-text return email into a structured case for support staff: what's missing, which policy rules might apply, what to ask next, and a draft reply.
+        The AI organises and drafts; staff make the decision. Every output runs through automated guardrail checks. Replies follow the customer's language.
+      </p>
     </header>
 
     <div class="grid">
@@ -91,6 +95,7 @@
             <button class="chip" data-sample="0" aria-pressed="true">範例 1：資訊不齊</button>
             <button class="chip" data-sample="1" aria-pressed="false">範例 2：資料完整</button>
             <button class="chip" data-sample="2" aria-pressed="false">範例 3：不可退商品</button>
+            <button class="chip" data-sample="3" aria-pressed="false">Sample 4: English email</button>
           </div>
           <label for="email" class="hint">可修改內容或貼上自己的範例。請勿輸入真實個人資料。</label>
           <textarea id="email" maxlength="1500"></textarea>
@@ -134,11 +139,12 @@
     const SAMPLES = [
       "你好，我上週在你們網站買了一台 55 吋電視，還有一盒冷凍水餃。電視開機後畫面右下角有一條亮線，箱子我還留著，但保麗龍丟了一半。水餃還沒拆，想一起退。我是刷卡分期的，發票有打統編。可以派人來收嗎？我平日白天不在家。",
       "您好，我的會員卡號是 111222333，訂單編號 TW20261015-8842。10 月 20 日收到的無線吸塵器，用了兩次覺得太重，不適合我。保證書、配件和原包裝都還在，總共一箱。取件請聯絡王小姐，電話 0900-000-000，地址台中市西屯區範例路 1 號。付款是一次付清，發票是個人雲端載具。",
-      "請問我十月初在網站買的 1 盎司金條可以退嗎？最近價格跌了想退掉，東西完全沒有拆封。"
+      "請問我十月初在網站買的 1 盎司金條可以退嗎？最近價格跌了想退掉，東西完全沒有拆封。",
+      "Hi, I'm in Taiwan for work and ordered an air purifier on your website last Tuesday. It arrived yesterday but makes a loud rattling noise when it runs. I still have the box and all the parts. My membership number is 123456789 and I paid in full by credit card. Can someone pick it up from my hotel? I check out on Friday."
     ];
     const REQUIRED = ["會員卡號", "訂單編號", "商品名稱／件數", "退貨商品包裝箱數", "取件資訊（姓名／電話／地址）", "退貨原因"];
     const FIELDS = [["return_reason", "退貨原因"], ["condition", "商品狀況"], ["packaging", "包裝完整度"], ["received_date", "收貨日期"], ["payment", "付款方式"], ["invoice", "發票類型"]];
-    const BANNED = ["瑕疵", "保證", "一定可以", "工作天", "管理室", "大小章", "發票章", "印章"];
+    const BANNED = ["瑕疵", "保證", "一定可以", "工作天", "管理室", "大小章", "發票章", "印章", "defect", "guarantee", "business days", "company seal"];
     let RULES = [];
 
     const $ = (s) => document.querySelector(s);
@@ -187,10 +193,16 @@
       checks.push({ ok: badRules.length === 0, label: "只引用摘錄內的規則（1–7）", detail: badRules.length ? `摘錄外：${badRules.map((r) => r.rule_no).join("、")}` : "" });
 
       const reply = res.reply_draft || "";
-      const len = reply.replace(/\s/g, "").length;
-      checks.push({ ok: len <= 120, label: "回覆 120 字以內", detail: `${len} 字` });
+      const isEnglish = (reply.match(/[A-Za-z]/g) || []).length > reply.replace(/\s/g, "").length / 2;
+      if (isEnglish) {
+        const words = reply.trim().split(/\s+/).filter(Boolean).length;
+        checks.push({ ok: words <= 80, label: "回覆 80 個英文單字以內 · Reply ≤ 80 words", detail: `${words} words` });
+      } else {
+        const len = reply.replace(/\s/g, "").length;
+        checks.push({ ok: len <= 120, label: "回覆 120 字以內", detail: `${len} 字` });
+      }
 
-      const hits = BANNED.filter((w) => reply.includes(w));
+      const hits = BANNED.filter((w) => reply.toLowerCase().includes(w.toLowerCase()));
       checks.push({ ok: hits.length === 0, label: "回覆沒有判定瑕疵、沒有承諾或要求印章", detail: hits.length ? `出現：${hits.join("、")}` : "" });
 
       return checks;

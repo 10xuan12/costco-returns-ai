@@ -72,6 +72,10 @@ These checks cover only what code can verify. Semantic judgement, such as over-i
 3. In Netlify go to **Site configuration → Environment variables** and add `GEMINI_API_KEY`.
 4. Optional: set `GEMINI_MODEL` to use a different model. The default is `gemini-flash-latest`.
 
+## Language
+
+Replies follow the customer's language (Chinese or English).
+
 ## Stack
 
 Plain HTML/CSS/JS · Netlify Functions (Node) · Gemini API with structured output
