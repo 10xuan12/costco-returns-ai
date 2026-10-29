@@ -112,7 +112,8 @@ export default async (req) => {
   if (req.method === "GET") return json({ rules: RULES, model: MODEL });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const key = process.env.GEMINI_API_KEY;
+  // Trim stray spaces or quotes that often come along when pasting the key.
+  const key = (process.env.GEMINI_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!key) return json({ error: "Server is missing GEMINI_API_KEY." }, 500);
 
   let email = "";
@@ -146,7 +147,11 @@ export default async (req) => {
   if (!res.ok) {
     const detail = await res.text();
     const status = res.status === 429 ? 429 : 502;
-    const message = res.status === 429 ? "已達 Gemini 免費額度上限，請稍後再試。" : "Gemini API 呼叫失敗。";
+    const message =
+      res.status === 429 ? "已達 Gemini 免費額度上限，請稍後再試。"
+      : detail.includes("API_KEY_INVALID") ? "伺服器上的 Gemini API key 無效，請到 Netlify 重新設定 GEMINI_API_KEY。"
+      : detail.includes("not found") || res.status === 404 ? `找不到模型 ${MODEL}，請在 Netlify 設定 GEMINI_MODEL。`
+      : "Gemini API 呼叫失敗。";
     console.error("Gemini error", res.status, detail.slice(0, 500));
     return json({ error: message }, status);
   }
